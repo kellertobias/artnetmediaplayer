@@ -23,12 +23,27 @@ class AudioPlayer():
 		self.actPlaystateValue = 0
 		self.playingFile  = False
 
-		ArtNetReceiver.registerCallback(self.addr + 0 , self.volume)
-		ArtNetReceiver.registerCallback(self.addr + 1 , self.load)
-		ArtNetReceiver.registerCallback(self.addr + 2 , self.load)
-		ArtNetReceiver.registerCallback(self.addr + 3 , self.position)
-		ArtNetReceiver.registerCallback(self.addr + 4 , self.position)
-		ArtNetReceiver.registerCallback(self.addr + 5 , self.playstate)
+		self.channels = {
+			"volume": 		self.addr + 0,
+			"folder": 		self.addr + 1,
+			"file": 		self.addr + 2,
+			"poshigh": 		self.addr + 3,
+			"poslow": 		self.addr + 4,
+			"playstate": 	self.addr + 5
+		}
+
+		ArtNetReceiver.registerCallback(self.channels.get("volume", 	self.addr) , self.volume)
+		ArtNetReceiver.registerCallback(self.channels.get("folder", 	self.addr) , self.load)
+		ArtNetReceiver.registerCallback(self.channels.get("file",		self.addr) , self.load)
+		ArtNetReceiver.registerCallback(self.channels.get("poshigh", 	self.addr) , self.position)
+		ArtNetReceiver.registerCallback(self.channels.get("poslow", 	self.addr) , self.position)
+		ArtNetReceiver.registerCallback(self.channels.get("playstate", 	self.addr) , self.playstate)
+
+	def getDMXFootprint(self):
+		return len(self.channels.keys())
+	
+	def printDMXFootprint(self):
+		print self.channels
 
 	def playerWorker(self, queue):
 		pygame.init()
@@ -69,8 +84,11 @@ class AudioPlayer():
 		self.queue.put(("volume", value/255.0))
 
 	def load(self, channel, value, change, dmx):
-		folderId = dmx[self.addr+1]
-		fileId = dmx[self.addr+2]
+		folderChannel = self.channels.get("folder", 	self.addr)
+		fileChannel   = self.channels.get("file",		self.addr)
+
+		folderId = dmx[folderChannel]
+		fileId = dmx[fileChannel]
 		print "Loading File {0}/{1}".format(folderId, fileId)
 		nextFile = self.playlist.get(folderId, {}).get(fileId, False)
 
@@ -90,7 +108,9 @@ class AudioPlayer():
 			self.queue.put((self.actPlaystate, self.actPlaystateValue))
 
 	def position(self, channel, value, change, dmx):
-		second = 256*dmx[self.addr+3] + dmx[self.addr+4]
+		poshigh = self.channels.get("poshigh", 	self.addr)
+		poslog  = self.channels.get("poslow", 	self.addr)
+		second = 256*dmx[poshigh] + dmx[poslog]
 		print "Setting Position to Second {0}".format(second/10.0)
 		self.queue.put(("position", second/10.0))
 
@@ -118,8 +138,3 @@ class AudioPlayer():
 			self.playstate = newPlayState
 			self.actPlaystateValue = psvalue
 			self.queue.put((newPlayState, psvalue))
-
-
-	def play(self):
-		self.queue.put(("load", "/home/keller/Musik/Woodkid/Run Boy Run (EP)/01. Run Boy Run.mp3"))
-		self.queue.put(("play", -1))

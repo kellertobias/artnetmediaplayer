@@ -2,9 +2,11 @@
 	"universe": 0,
 	"start": 100,
 	"audio_players": 2,
-	"playlist": {
+	"audio_playlist": {
 		"0": {
-			"0": ""
+			"0": "",
+			"1": "",
+			"2": ""
 		}
 	}
 }

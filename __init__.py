@@ -2,17 +2,36 @@ from artnet_receiver import ArtNetReceiver
 from audio_player import AudioPlayer
 import time
 import pygame
-
-artnetReceiver = ArtNetReceiver(0)
-
+import json
 
 
-playlist = {}
+with open('config.json') as data_file:    
+    config = json.load(data_file)
 
-# Configures one AudioPlayer at Startingaddress 100 (DMX 100, where 1 is the first address and 512 is the last one.)
-ac1 = AudioPlayer(100, playlist, artnetReceiver)
 
-print "ArtnetReceiver Running"
+artnetReceiver = ArtNetReceiver(config.get("universe", 0))
+
+address = config.get("start", 1);
+
+audio_players_count = config.get("audio_players", 1)
+audio_players = [None] * audio_players_count;
+
+playlist = config.get("audio_playlist", {})
+
+for i in range(audio_players_count):
+	# Create Player
+	ap = AudioPlayer(address, playlist, artnetReceiver)
+
+	# Get Amount of Channels it is using
+	address += ap.getDMXFootprint() or 0
+
+	ap.printDMXFootprint()
+
+	# add player to list
+	audio_players[i] = ap
+
+
+print "Running ArtnetReceiver"
 artnetReceiver.run()
 
 while True:
