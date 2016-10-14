@@ -23,7 +23,7 @@ for i in range(audio_players_count):
 	ap = AudioPlayer(address, playlist, artnetReceiver)
 
 	# Get Amount of Channels it is using
-	address += ap.getDMXFootprint() or 0
+	address += ap.getDMXFootprint() or 6
 
 	ap.printDMXFootprint()
 
