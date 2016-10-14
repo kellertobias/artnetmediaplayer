@@ -1,3 +1,6 @@
+# The ArtNET Receiver is based upon the work of 
+# https://github.com/Blinkinlabs/BlinkyTape_Python/blob/master/artnet-receiver.py by Matt Mets
+
 import sys
 import time
 
