@@ -90,8 +90,8 @@ class AudioPlayer():
 		folderId = dmx[folderChannel]
 		fileId = dmx[fileChannel]
 		print "Loading File {0}/{1}".format(folderId, fileId)
-		nextFile = self.playlist.get(folderId, {}).get(fileId, False)
-
+		nextFile = self.playlist.get(str(folderId), {}).get(str(fileId), False)
+		print nextFile
 		if not nextFile:
 			# Stop Playback
 			self.queue.put(("stop", 0))
