@@ -145,7 +145,8 @@ class Display(threading.Thread):
 			print "Not running on Raspberry Pi, not Initializing Display"
 
 		colourBlack = (0, 0, 0)
-		colourGreen = (0, 220, 0)
+		colourGreen = (0, 200, 0)
+		colourGreenBright = (0, 225, 0)
 		colourYellow = (225, 200, 0)
 		colourRed = (200, 0, 0)
 		colourRedBright = (255, 0, 0)
@@ -173,7 +174,12 @@ class Display(threading.Thread):
 
 				elif comm.get("universe", None) is not None and comm.get("address", None) is not None:
 					dmx = "DMX: %s.%s" % (comm.get("universe"), comm.get("address"))
-					self.mytft.draw_circle(10, 300, 5, colourGreen)
+					if blink:
+						self.mytft.draw_circle(10, 300, 5, colourGreenBright)
+						blink = False
+					else:
+						self.mytft.draw_circle(10, 300, 5, colourGreen)
+						blink = True
 				else:
 					dmx = "DMX: -/-"
 
