@@ -2,6 +2,8 @@ import pygame
 import time
 import threading
 import multiprocessing
+import operator
+
 
 audioChannels = 0
 
@@ -27,51 +29,121 @@ class AudioPlayer():
 			"volume": 		self.addr + 0,
 			"folder": 		self.addr + 1,
 			"file": 		self.addr + 2,
-			"poshigh": 		self.addr + 3,
-			"poslow": 		self.addr + 4,
-			"playstate": 	self.addr + 5
+			"playstate": 	self.addr + 3
 		}
 
 		ArtNetReceiver.registerCallback(self.channels.get("volume", 	self.addr) , self.volume)
-		ArtNetReceiver.registerCallback(self.channels.get("folder", 	self.addr) , self.load)
-		ArtNetReceiver.registerCallback(self.channels.get("file",		self.addr) , self.load)
-		ArtNetReceiver.registerCallback(self.channels.get("poshigh", 	self.addr) , self.position)
-		ArtNetReceiver.registerCallback(self.channels.get("poslow", 	self.addr) , self.position)
+		ArtNetReceiver.registerCallback([
+			self.channels.get("folder", 	self.addr),
+			self.channels.get("file",		self.addr)
+		] , self.load)
 		ArtNetReceiver.registerCallback(self.channels.get("playstate", 	self.addr) , self.playstate)
 
 	def getDMXFootprint(self):
 		return len(self.channels.keys())
 	
 	def printDMXFootprint(self):
-		print self.channels
+		sorted_out = sorted(self.channels.items(), key=operator.itemgetter(1))
+		print "AudioPlayer {0}: ".format(self.channelNumber)
+		print "  +------------+---------+"
+		print "  | {0:10s} | {1} |".format("Parameter", "Address")
+		print "  +------------+---------+"
+		for item in sorted_out:
+			print "  | {0:10s} | {1:4d}    |".format(item[0], item[1]+1)
+		print "  +------------+---------+"
+		print ""
+		
+
+	def debugPrint(self, method, message):
+		print "[Player {0:2d}, {1:6s}]: {2}".format(self.channelNumber, method, message)
 
 	def playerWorker(self, queue):
+		actualFile = False
 		pygame.init()
 		position = 0
+		pause = False
+		play  = False
+		loop = False
 		while True:
 			try:
 				(command, value) = queue.get()
-				print "AudioPlayer {0}: doing {1} with {2}".format(self.channelNumber, command, value)
 				try:
-					if   command == "play":
-						pygame.mixer.music.play(value,position)
-					elif command == "pause":
-						pygame.mixer.music.pause()
-					elif command == "unpause":
-						pygame.mixer.music.unpause()
-					elif command == "stop":
-						pygame.mixer.music.stop()
+					if   command == "playmode":
+						if value < 32:		# STOP
+							self.debugPrint( "MODE", "STOP")
+
+							pause = False
+							play = False
+							loop = False
+
+							pygame.mixer.music.stop()
+
+						elif value < 128:		# PLAY (<64) and LOOP (<128)
+
+							if pause:
+								
+								pygame.mixer.music.unpause()
+
+							else:	
+								loop = False
+
+								pygame.mixer.music.load(actualFile)
+
+								if value < 64:
+									self.debugPrint( "MODE", "PLAY")
+									pygame.mixer.music.play(0)
+									loop = True
+
+								else:
+									self.debugPrint( "MODE", "LOOP")
+									pygame.mixer.music.play(-1)
+									loop = True
+
+							play = True	
+							pause = False
+								
+						elif value < 160:		# PAUSE
+							self.debugPrint( "MODE", "PAUSE")
+
+							play = False
+							pause = True
+
+							pygame.mixer.music.pause()
+
+						else:					# Do Nothing Mode / Reserved
+							self.debugPrint( "MODE", "No Change")
+
+
 					elif command == "load":
-						pygame.mixer.music.load(value)
-						pass
-					elif command == "position":
-						position = value
-						pygame.mixer.music.rewind()
-						pygame.mixer.music.set_pos(value)
-						pass
+						(folderId, fileId, nextFile) = value
+
+						if not nextFile:
+							self.debugPrint( "LOAD", "{0}/{1}: No File at Index".format(folderId, fileId))
+							actualFile = False
+							continue;
+						self.debugPrint( "LOAD", "{0}/{1}: {2}".format(folderId, fileId, nextFile))
+						
+						pygame.mixer.music.load(nextFile)
+						actualFile = nextFile
+
+						if play or pause:
+							if loop:
+								pygame.mixer.music.play(-1)
+								self.debugPrint( "LOAD", "Resuming Looped")
+							else:
+								pygame.mixer.music.play(0)
+								self.debugPrint( "LOAD", "Resuming Play")
+
+						if pause:
+							pygame.mixer.music.pause()
+							self.debugPrint( "LOAD", "Resuming Pause")
+
+
+
+
 					elif command == "volume":
+						self.debugPrint( "VOLUME", "{0:5.1f}%".format(value * 100))
 						pygame.mixer.music.set_volume(value)
-						pass
 				except Exception as e:
 					pass
 
@@ -79,62 +151,15 @@ class AudioPlayer():
 				return False
 
 
-	def volume(self, channel, value, change, dmx):
-		print "Setting Volume to {0}".format(value/255.0)
+	def volume(self, channel, value, dmx):
 		self.queue.put(("volume", value/255.0))
 
-	def load(self, channel, value, change, dmx):
-		folderChannel = self.channels.get("folder", 	self.addr)
-		fileChannel   = self.channels.get("file",		self.addr)
+	def load(self, channel, value, dmx):
+		folderId = value[0]
+		fileId   = value[1]
 
-		folderId = dmx[folderChannel]
-		fileId = dmx[fileChannel]
-		print "Loading File {0}/{1}".format(folderId, fileId)
 		nextFile = self.playlist.get(str(folderId), {}).get(str(fileId), False)
-		print nextFile
-		if not nextFile:
-			# Stop Playback
-			self.queue.put(("stop", 0))
+		self.queue.put(("load", (folderId, fileId, nextFile)))
 
-		if self.playingFile != nextFile:
-			# load file
-			self.queue.put(("load", nextFile))
-			self.playingFile = nextFile
-
-			# Stop Playback
-			self.queue.put(("stop", 0))
-
-			# resume playback with last setup
-			self.queue.put((self.actPlaystate, self.actPlaystateValue))
-
-	def position(self, channel, value, change, dmx):
-		poshigh = self.channels.get("poshigh", 	self.addr)
-		poslog  = self.channels.get("poslow", 	self.addr)
-		second = 256*dmx[poshigh] + dmx[poslog]
-		print "Setting Position to Second {0}".format(second/10.0)
-		self.queue.put(("position", second/10.0))
-
-	def playstate(self, channel, value, change, dmx):
-		print "Setting Playstate {0}".format(value)
-		newPlayState = "stop"
-		psvalue = 0
-		if value < 32:
-			newPlayState = "stop"	# stop
-		elif value < 64:
-			if self.actPlaystate == "pause":
-				newPlayState = "unpause"
-			else:
-				newPlayState = "play"	# play
-				psvalue = 0
-		elif value < 128:			# loop
-			newPlayState = "play"
-			psvalue = -1
-		elif value < 160:			# pause
-			newPlayState = "pause"
-
-
-
-		if self.actPlaystate != newPlayState:
-			self.playstate = newPlayState
-			self.actPlaystateValue = psvalue
-			self.queue.put((newPlayState, psvalue))
+	def playstate(self, channel, value, dmx):
+		self.queue.put(("playmode", value))

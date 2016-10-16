@@ -4,9 +4,9 @@
 	"audio_players": 2,
 	"audio_playlist": {
 		"0": {
-			"0": "",
-			"1": "",
-			"2": ""
+			"0": "/home/keller/runboy.mp3",
+			"1": "/home/keller/diverge.mp3",
+			"2": "/home/keller/silence.mp3"
 		}
 	}
 }

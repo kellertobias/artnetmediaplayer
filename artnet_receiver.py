@@ -4,7 +4,7 @@
 import sys
 import time
 
-from socket import (socket, AF_INET, SOCK_DGRAM)
+import socket
 from struct import unpack
 
 import threading
@@ -63,18 +63,17 @@ class ArtNetReceiver(threading.Thread):
 
         print(("Listening for ArtNet Packages in {0}:{1}").format(ip, port))    
 
-        self.sock = socket(AF_INET, SOCK_DGRAM)  # UDP
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)  # UDP
         self.sock.bind((ip, port))
-        # self.sock.setblocking(False)
+        self.sock.setblocking(False)
 
-        self.actualData     = [0] * (listenStop + 1)
+        self.actualData     = [-1] * (listenStop + 1)
         self.lastTime       = time.time()
         self.lastSequence   = 0
 
         self.callbacks = [False] * (listenStop + 1)
-        self.callbacksToRun = []
 
-        self.lastPacketTime = time.time();
+        self.lastPacketTime = time.time()-3;
         self.status = False
 
     def watchdog(self):
@@ -105,14 +104,20 @@ class ArtNetReceiver(threading.Thread):
             Function needs this footprint:
             function(address, value, changeAmount, completeUniverse)
         '''
-        self.callbacks[address] = function
 
+
+        if type(address) is list:
+            for singleAddress in address:
+                self.callbacks[singleAddress] = (function, True, address)
+
+        else:
+            self.callbacks[address] = (function, False, address)
 
     def run(self):
         self.watchdog()
+        self.callbacksToRun = {}
         while True:
             try:
-           
                 data, addr = self.sock.recvfrom(1024)
            
 
@@ -130,21 +135,31 @@ class ArtNetReceiver(threading.Thread):
                         oldDataValue = self.actualData[i]
                         newDataValue = unpack('B',newData)[0]
                         self.actualData[i] = newDataValue
+                        # if newDataValue != oldDataValue:
+                        #     print "Change in Data for Channel {0} went to {1}".format(i + 1, newDataValue)
                         if newDataValue != oldDataValue and self.callbacks[i]:
-                            print "Change in Data for Channel {0} went to {1}".format(i, newDataValue)
-                            difference = newDataValue - oldDataValue;
-                            self.callbacksToRun.append((i, newDataValue, difference, self.callbacks[i]));
+                            print "Attaching Callback"
+                            (callback, isWide, addresses) = self.callbacks[i]
+                            if isWide:
+                                self.callbacksToRun[addresses[0]]   = (callback, addresses, isWide)
+                            else:
+                                self.callbacksToRun[addresses]      = (callback, addresses, isWide)
                         i += 1
 
                     # Do the callbacks
-                    for cbSet in self.callbacksToRun:
-                        (channel, value, difference, function) = cbSet;
+                    for cbStartAdrr in self.callbacksToRun:
+                        (callback, addresses, isWide) = self.callbacksToRun[cbStartAdrr];
+                        if isWide:
+                            callback(addresses, [self.actualData[i] for i in addresses], self.actualData)
 
-                        function(channel, value, difference, self.actualData)
-                    
-                    self.callbacksToRun = []
+                        else:
+                            callback(addresses, self.actualData[addresses], self.actualData)
+
+                    self.callbacksToRun = {}
                     self.lastSequence = packet.sequence
 
+            except socket.error as e:
+                time.sleep(0.01);
             except KeyboardInterrupt:
                 self.sock.close()
                 return False
