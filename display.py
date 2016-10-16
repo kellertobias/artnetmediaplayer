@@ -176,8 +176,11 @@ class Display(threading.Thread):
 
 				self.mytft.message_display("IP: %s" % comm.get("ip"), "sm", -10, 290, colourWhite)
 
-				for 
-				
+				print comm
+
+				for playerId in comm.get("audio", []):
+					player = comm.get("audio").get(playerId)
+
 				pygame.display.update()
 
 				time.sleep(1)
