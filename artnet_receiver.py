@@ -55,12 +55,14 @@ class ArtnetPacket:
 		return packet
 
 class ArtNetReceiver(threading.Thread):
-	def __init__(self, universe, listenStart = 0, listenStop = 512, ip = UDP_IP, port = UDP_PORT):
+	def __init__(self, universe, comm = None, listenStart = 0, listenStop = 512, ip = UDP_IP, port = UDP_PORT):
 		threading.Thread.__init__(self)
 		self.universe       = universe
 		self.listenStart    = listenStart
 		self.listenStop     = listenStop
 		self.stopped = False
+
+		self.comm = comm
 
 		print(("Listening for ArtNet Packages in {0}:{1}").format(ip, port))    
 
@@ -96,9 +98,11 @@ class ArtNetReceiver(threading.Thread):
 
 		if statusChanged and self.status:
 			print "Now Receiving ArtNET Signal"
+			self.comm["signal"] = True
 
 		if statusChanged and not self.status:
 			print "ArtNET Signal LOST!!!"
+			self.comm["signal"] = False
 
 
 

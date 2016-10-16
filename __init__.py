@@ -39,7 +39,7 @@ comm["address"] =  address
 comm["audio"] =  {}
 
 
-artnetReceiver = ArtNetReceiver(universe)
+artnetReceiver = ArtNetReceiver(universe, comm = comm)
 
 for i in range(audio_players_count):
 	# Create Player

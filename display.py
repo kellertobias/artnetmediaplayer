@@ -2,6 +2,17 @@ import sys
 import time
 import threading
 
+import os, syslog, sys, signal
+
+import pygame
+
+import string
+
+import json
+
+maxLineLength = 36;
+display_width = 480;
+display_height = 320;
 
 
 class pitft :
@@ -36,6 +47,7 @@ class pitft :
 
 		print "Got Size"
 		self.screen = pygame.display.set_mode(size, pygame.FULLSCREEN)
+		pygame.mouse.set_visible(False)
 
 		print "Mode is set"
 		# Clear the screen to start
@@ -55,10 +67,10 @@ class pitft :
 		#self.fontpath = pygame.font.match_font('dejavusansmono')
 		self.fontpath 		= "fonts/Roboto-Light.ttf"
 		self.fontpathNormal = "fonts/Roboto-Regular.ttf"
-		self.fontXxl 		= pygame.font.Font(self.fontpath, 165)
-		self.fontXl 		= pygame.font.Font(self.fontpath, 40)
-		self.fontMd 		= pygame.font.Font(self.fontpathNormal, 36)
-		self.fontSm 		= pygame.font.Font(self.fontpathNormal, 26)
+		self.fontXxl 		= pygame.font.Font(self.fontpath, 34)
+		self.fontXl 		= pygame.font.Font(self.fontpath, 30)
+		self.fontMd 		= pygame.font.Font(self.fontpathNormal, 24)
+		self.fontSm 		= pygame.font.Font(self.fontpathNormal, 18)
 
 		print "Fonts Loaded"
 
@@ -90,6 +102,8 @@ class pitft :
 
 		if x == False:
 			TextRect.center = ((display_width/2),y+TextRect.height/2)
+		elif x < 0:
+			TextRect.center = (display_width - TextRect.width/2 +x ,y+TextRect.height/2)
 		else:
 			TextRect.center = (x+TextRect.width/2,y+TextRect.height/2)
 
@@ -97,6 +111,9 @@ class pitft :
 
 	def draw_rect(self, xs, ys, x, y, color):
 		pygame.draw.rect(self.screen, color, [x,y,xs,ys], 2)
+
+	def draw_circle(self, x, y, r, color, width = 0):
+		pygame.draw.circle(self.screen, color, [x,y], r, width)
 
 
 	def showimage(self, image, x,y, xscale=False,yscale=False, color=False):
@@ -122,10 +139,47 @@ class Display(threading.Thread):
 		self.stopped = True
 
 	def run(self): 
+		colourBlack = (0, 0, 0)
+		colourGreen = (0, 220, 0)
+		colourYellow = (225, 200, 0)
+		colourRed = (200, 0, 0)
+		colourRedBright = (255, 0, 0)
+		colourWhite = (255, 255, 255)
+
+		blink = True
+
 		comm = self.comm
 		while not self.stopped:
 			try:
-				print "Artnet: %s.%s on IP: %s" % (comm.get("universe"), comm.get("address"), comm.get("ip"))
+				self.mytft.screen.fill(colourBlack)	
+				self.mytft.message_display("TUDS ArtNet Media Player", "xl", False, 10, colourWhite)
+
+				dmx = "Not Configured"
+
+				if not comm.get("signal", False):
+					dmx = "DMX: %s.%s - Kein Signal" % (comm.get("universe", "-"), comm.get("address", "-"))
+
+					if blink:
+						self.mytft.draw_circle(10, 300, 5, colourRed)
+						blink = False
+					else:
+						self.mytft.draw_circle(10, 300, 5, colourRedBright)
+						blink = True
+
+				elif comm.get("universe", None) is not None and comm.get("address", None) is not None:
+					dmx = "DMX: %s.%s" % (comm.get("universe"), comm.get("address"))
+					self.mytft.draw_circle(10, 300, 5, colourGreen)
+				else:
+					dmx = "DMX: -/-"
+
+				self.mytft.message_display(dmx, "sm", 25, 290, colourWhite)
+
+				self.mytft.message_display("IP: %s" % comm.get("ip"), "sm", -10, 290, colourWhite)
+
+				for 
+				
+				pygame.display.update()
+
 				time.sleep(1)
 			except KeyboardInterrupt:
 				return False
@@ -133,3 +187,10 @@ class Display(threading.Thread):
 
 
 if __name__ == "__main__":
+	disp = Display({
+		"ip": "10.0.2.3",
+		"universe": 0,
+		"address": 100,
+	})
+
+	disp.run()
