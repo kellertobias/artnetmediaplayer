@@ -7,18 +7,24 @@ import operator
 
 audioChannels = 0
 
-class AudioPlayer():
-	def __init__(self, startAddress, playlist, ArtNetReceiver):
+class AudioPlayer(threading.Thread):
+	def __init__(self, startAddress, playlist, ArtNetReceiver, systemCommunication):
+		threading.Thread.__init__(self)
 		global audioChannels
 		audioChannels += 1
+
 
 		self.addr = startAddress - 1 # using 1 based addresses
 		self.playlist = playlist
 		
 		self.channelNumber = audioChannels
+		self.comm = systemCommunication
+
+		self.comm["audio"][self.channelNumber] = {}
 		
 		self.queue = multiprocessing.Queue()
-		self.playerProcess = multiprocessing.Process(target=self.playerWorker, args=(self.queue, ))
+		self.outqueue = multiprocessing.Queue()
+		self.playerProcess = multiprocessing.Process(target=self.playerWorker, args=(self.queue, self.outqueue))
 		self.playerProcess.start()
 		
 		self.actPlaystate = "stop"
@@ -39,6 +45,31 @@ class AudioPlayer():
 		] , self.load)
 		ArtNetReceiver.registerCallback(self.channels.get("playstate", 	self.addr) , self.playstate)
 
+		self.stopped = False
+		self.start()
+
+
+	def stop(self):
+		print "Audioplayer %s Ending" % self.channelNumber
+		self.stopped = True
+
+	def run(self):
+		while not self.stopped:
+			try:
+				if self.outqueue.empty():
+					time.sleep(0.1)
+				else:
+					(param, value) = self.outqueue.get(False, 0.75)
+					self.comm["audio"][self.channelNumber][param] = value
+					time.sleep(0.01)
+
+			except KeyboardInterrupt:
+				self.stopped = True
+				return False
+
+		print "Audioplayer %s Terminated" % self.channelNumber
+		
+
 	def getDMXFootprint(self):
 		return len(self.channels.keys())
 	
@@ -57,7 +88,7 @@ class AudioPlayer():
 	def debugPrint(self, method, message):
 		print "[Player {0:2d}, {1:6s}]: {2}".format(self.channelNumber, method, message)
 
-	def playerWorker(self, queue):
+	def playerWorker(self, queue, comm):
 		actualFile = False
 		pygame.init()
 		position = 0
@@ -76,6 +107,8 @@ class AudioPlayer():
 							play = False
 							loop = False
 
+							comm.put(("state", "stop"))
+
 							pygame.mixer.music.stop()
 
 						elif value < 128:		# PLAY (<64) and LOOP (<128)
@@ -83,6 +116,7 @@ class AudioPlayer():
 							if pause:
 								
 								pygame.mixer.music.unpause()
+								comm.put(("state", "unpause"))
 
 							else:	
 								loop = False
@@ -93,11 +127,13 @@ class AudioPlayer():
 									self.debugPrint( "MODE", "PLAY")
 									pygame.mixer.music.play(0)
 									loop = True
+									comm.put(("state", "play"))
 
 								else:
 									self.debugPrint( "MODE", "LOOP")
 									pygame.mixer.music.play(-1)
 									loop = True
+									comm.put(("state", "loop"))
 
 							play = True	
 							pause = False
@@ -107,7 +143,7 @@ class AudioPlayer():
 
 							play = False
 							pause = True
-
+							comm.put(("state", "pause"))
 							pygame.mixer.music.pause()
 
 						else:					# Do Nothing Mode / Reserved
@@ -126,6 +162,10 @@ class AudioPlayer():
 						pygame.mixer.music.load(nextFile)
 						actualFile = nextFile
 
+						comm.put(("folder", folderId))
+						comm.put(("fileNo", fileId))
+						comm.put(("file", nextFile))
+
 						if play or pause:
 							if loop:
 								pygame.mixer.music.play(-1)
@@ -143,8 +183,12 @@ class AudioPlayer():
 
 					elif command == "volume":
 						self.debugPrint( "VOLUME", "{0:5.1f}%".format(value * 100))
+						comm.put(("volume", value * 100))
 						pygame.mixer.music.set_volume(value)
+
 				except Exception as e:
+					print "Error in audioplayer %s" % self.channelNumber
+					print e
 					pass
 
 			except KeyboardInterrupt:
