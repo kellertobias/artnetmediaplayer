@@ -86,7 +86,8 @@ class AudioPlayer(threading.Thread):
 		
 
 	def debugPrint(self, method, message):
-		print "[Player {0:2d}, {1:6s}]: {2}".format(self.channelNumber, method, message)
+		#print "[Player {0:2d}, {1:6s}]: {2}".format(self.channelNumber, method, message)
+		pass
 
 	def playerWorker(self, queue, comm):
 		actualFile = False

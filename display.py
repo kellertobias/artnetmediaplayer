@@ -67,9 +67,9 @@ class pitft :
 		#self.fontpath = pygame.font.match_font('dejavusansmono')
 		self.fontpath 		= "fonts/Roboto-Light.ttf"
 		self.fontpathNormal = "fonts/Roboto-Regular.ttf"
-		self.fontXxl 		= pygame.font.Font(self.fontpath, 34)
-		self.fontXl 		= pygame.font.Font(self.fontpath, 30)
-		self.fontMd 		= pygame.font.Font(self.fontpathNormal, 24)
+		self.fontXxl 		= pygame.font.Font(self.fontpathNormal, 34)
+		self.fontXl 		= pygame.font.Font(self.fontpathNormal, 34)
+		self.fontMd 		= pygame.font.Font(self.fontpathNormal, 20)
 		self.fontSm 		= pygame.font.Font(self.fontpathNormal, 18)
 
 		print "Fonts Loaded"
@@ -109,8 +109,8 @@ class pitft :
 
 		self.screen.blit(TextSurf, TextRect)
 
-	def draw_rect(self, xs, ys, x, y, color):
-		pygame.draw.rect(self.screen, color, [x,y,xs,ys], 2)
+	def draw_rect(self, xs, ys, x, y, color, width = 1):
+		pygame.draw.rect(self.screen, color, [x,y,xs,ys], width)
 
 	def draw_circle(self, x, y, r, color, width = 0):
 		pygame.draw.circle(self.screen, color, [x,y], r, width)
@@ -139,6 +139,11 @@ class Display(threading.Thread):
 		self.stopped = True
 
 	def run(self): 
+		(linux, hostname, kernelversion, message, processor) = os.uname();
+
+		if not processor.startswith("arm"):
+			print "Not running on Raspberry Pi, not Initializing Display"
+
 		colourBlack = (0, 0, 0)
 		colourGreen = (0, 220, 0)
 		colourYellow = (225, 200, 0)
@@ -176,14 +181,34 @@ class Display(threading.Thread):
 
 				self.mytft.message_display("IP: %s" % comm.get("ip"), "sm", -10, 290, colourWhite)
 
-				print comm
-
 				for playerId in comm.get("audio", []):
 					player = comm.get("audio").get(playerId)
+					startOffset = (playerId - 1) * 56 + 80
+					self.mytft.message_display("Audio Player %s" % playerId, "md", 25, startOffset, colourWhite)
+
+					if player:
+						state = player.get("state")
+						file = "%s/%s" % (player.get("folder"), player.get("fileNo"))
+						fileName = player.get("file")
+						if fileName:
+							try:
+								fileName = os.path.basename(fileName)
+							except Exception as e:
+								pass
+						volume = player.get("volume")
+
+						self.mytft.message_display(state, "md", 180, startOffset, colourWhite)
+						self.mytft.message_display(file, "md", 260, startOffset, colourWhite)
+						self.mytft.draw_rect(104, 16, 340, startOffset+5, colourWhite)
+						self.mytft.draw_rect(volume, 12, 342, startOffset+7, colourWhite, width=0)
+						self.mytft.message_display(fileName, "md", 40, startOffset+22, colourWhite)
+
+
+						pass
 
 				pygame.display.update()
 
-				time.sleep(1)
+				time.sleep(.25)
 			except KeyboardInterrupt:
 				return False
 		print "Display Terminated"
